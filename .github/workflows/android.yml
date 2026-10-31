@@ -29,13 +29,18 @@ jobs:
       - name: Allekirjoitusavain (jos lisätty Secrets-kohtaan)
         env:
           KS_B64: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASS }}
         run: |
-          if [ -n "$KS_B64" ]; then
-            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/dingding.jks"
-            echo "KS_FILE=$RUNNER_TEMP/dingding.jks" >> "$GITHUB_ENV"
+          KS="$RUNNER_TEMP/dingding.jks"
+          # poistetaan välilyönnit ja rivinvaihdot, joita liittäessä tarttuu mukaan
+          CLEAN=$(printf '%s' "$KS_B64" | tr -d ' \r\n\t')
+          if [ -n "$CLEAN" ] && printf '%s' "$CLEAN" | base64 -d > "$KS" 2>/dev/null \
+             && keytool -list -keystore "$KS" -storepass "$KS_PASS" >/dev/null 2>&1; then
+            echo "KS_FILE=$KS" >> "$GITHUB_ENV"
             echo "Käytetään omaa avainta"
           else
-            echo "Avainta ei ole – käytetään väliaikaista debug-avainta"
+            echo "::warning::Omaa avainta ei saatu luettua (tarkista KEYSTORE_B64 ja KEYSTORE_PASS) – käytetään väliaikaista avainta"
+            rm -f "$KS"
           fi
 
       - name: Käännä APK
